@@ -1,17 +1,7 @@
 #!/bin/bash
 
-# Create a new conda environment
-conda create -y -n latentsync python=3.10.13
-conda activate latentsync
-
-# Install ffmpeg
-conda install -y -c conda-forge ffmpeg
-
-# Python dependencies
-pip install -r requirements.txt
-
-# OpenCV dependencies
-sudo apt -y install libgl1
+# Python dependencies are now handled in Dockerfile
+# OpenCV dependencies are now handled in Dockerfile
 
 # Download all the checkpoints from HuggingFace
 huggingface-cli download ByteDance/LatentSync-1.5 --local-dir checkpoints --exclude "*.git*" "README.md"

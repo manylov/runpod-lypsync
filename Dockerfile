@@ -1,5 +1,5 @@
-# Start with NVIDIA PyTorch base image
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+# Start with NVIDIA PyTorch base image with conda
+FROM continuumio/miniconda3:latest
 
 # Set environment variables globally to prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -14,7 +14,12 @@ RUN apt-get update && \
     git \
     wget \
     ffmpeg \
+    sudo \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install CUDA and PyTorch dependencies
+RUN conda install -y pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
 
 # Set working directory
 WORKDIR /app
@@ -22,16 +27,32 @@ WORKDIR /app
 # Clone the LatentSync repository
 RUN git clone https://github.com/bytedance/LatentSync.git .
 
+# Create and activate conda environment
+RUN conda create -y -n latentsync python=3.10.13 && \
+    echo "conda activate latentsync" >> ~/.bashrc
+
+SHELL ["/bin/bash", "--login", "-c"]
+
 # Install Python dependencies
-RUN pip install -r requirements.txt
+RUN conda activate latentsync && \
+    pip install -r requirements.txt && \
+    pip install fastapi uvicorn httpx s3fs pydantic python-multipart
 
-# Download required checkpoints
-# Note: You'll need to modify setup_env.sh to download directly without user interaction
-COPY setup_env.sh /app/
-RUN bash setup_env.sh
+# Copy the server script and setup script
+COPY server.py setup_env.sh /app/
 
-# Create the handler for RunPod
-COPY handler.py /app/
+# Run setup script (modified to skip conda environment creation)
+RUN sed -i 's/conda create.*//g' setup_env.sh && \
+    sed -i 's/conda activate.*//g' setup_env.sh && \
+    sed -i 's/conda install.*//g' setup_env.sh && \
+    conda activate latentsync && \
+    bash setup_env.sh
 
 # Set environment variables
 ENV PYTHONPATH=/app
+
+# Expose the port
+EXPOSE 8081
+
+# Start the server
+CMD ["conda", "run", "-n", "latentsync", "python3", "server.py"]
